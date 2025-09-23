@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍲 Recipe Finder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-b from-indigo-50 to-white min-h-screen">
+
+<!-- Header -->
+<header class="text-center py-10">
+  <h1 class="text-4xl md:text-5xl font-extrabold text-indigo-700 drop-shadow-md">
+    🍲 Interactive Recipe Finder
+  </h1>
+  <p class="mt-2 text-indigo-500 text-lg md:text-xl">Find recipes from what you have in your pantry!</p>
+</header>
+
+<!-- Ingredients Input -->
+<section class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-8">
+  <h2 class="text-2xl font-semibold text-indigo-600 mb-4">Add Ingredients</h2>
+  <div class="flex flex-wrap gap-2">
+    <input id="ingredientsInput" type="text" placeholder="e.g., chicken, garlic" class="flex-1 p-3 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+    <button id="addBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-3 rounded-lg transition">Add</button>
+    <button id="searchBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg transition">Find Recipes</button>
+    <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg transition">Clear</button>
+  </div>
+  <div id="ingredientBadges" class="mt-4 flex flex-wrap gap-2"></div>
+
+  <div class="mt-4">
+    <label class="font-medium text-indigo-600 mr-2">Dietary Filter:</label>
+    <select id="dietFilter" class="p-2 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      <option value="">None</option>
+      <option value="vegetarian">Vegetarian</option>
+      <option value="vegan">Vegan</option>
+      <option value="gluten free">Gluten Free</option>
+      <option value="dairy free">Dairy Free</option>
+    </select>
+  </div>
+</section>
+
+<!-- Pantry Section -->
+<section class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-8">
+  <h2 class="text-2xl font-semibold text-indigo-600 mb-4">My Pantry</h2>
+  <div class="flex flex-wrap gap-2">
+    <input id="pantryItem" type="text" placeholder="e.g., milk" class="flex-1 p-3 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+    <input id="expiryDate" type="date" class="p-3 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+    <button id="addPantryBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-3 rounded-lg transition">Add Pantry Item</button>
+  </div>
+  <ul id="pantryList" class="mt-4 space-y-2"></ul>
+</section>
+
+<!-- Recipes Grid -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div id="results" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+</section>
+
+<script>
+// Use your Spoonacular API key
+const SPOONACULAR_KEY = "acb871f5162640da90fa521c1b2c9121";
+
+// Ingredients and favorites
+let ingredients = [];
+let favorites = new Set(JSON.parse(localStorage.getItem("favorites") || "[]"));
+
+// DOM Elements
+const ingredientsInput = document.getElementById("ingredientsInput");
+const addBtn = document.getElementById("addBtn");
+const searchBtn = document.getElementById("searchBtn");
+const clearBtn = document.getElementById("clearBtn");
+const badges = document.getElementById("ingredientBadges");
+const results = document.getElementById("results");
+const dietFilter = document.getElementById("dietFilter");
+
+// Pantry
+const pantryItem = document.getElementById("pantryItem");
+const expiryDate = document.getElementById("expiryDate");
+const pantryList = document.getElementById("pantryList");
+const addPantryBtn = document.getElementById("addPantryBtn");
+let pantry = JSON.parse(localStorage.getItem("pantry") || "[]");
+
+// ----- FUNCTIONS -----
+
+// Render ingredient badges
+function renderBadges() {
+  badges.innerHTML = "";
+  ingredients.forEach((ing, idx) => {
+    const span = document.createElement("span");
+    span.className = "bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full cursor-pointer hover:bg-indigo-200 transition";
+    span.textContent = ing;
+    span.onclick = () => { ingredients.splice(idx, 1); renderBadges(); };
+    badges.appendChild(span);
+  });
+}
+
+// Render pantry
+function renderPantry() {
+  pantryList.innerHTML = "";
+  pantry.forEach((item, idx)=>{
+    const li = document.createElement("li");
+    li.className = "px-3 py-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 cursor-pointer transition";
+    li.textContent = `${item.name} (expires: ${item.expiry})`;
+    if(new Date(item.expiry) < new Date()) li.classList.add("text-red-600");
+    li.onclick = ()=>{ pantry.splice(idx,1); savePantry(); renderPantry(); };
+    pantryList.appendChild(li);
+  });
+}
+
+// Save pantry to localStorage
+function savePantry(){ localStorage.setItem("pantry", JSON.stringify(pantry)); }
+
+// Add ingredients/pantry events
+addBtn.onclick = () => {
+  const raw = ingredientsInput.value.trim();
+  if(!raw) return;
+  raw.split(",").map(s=>s.trim()).filter(Boolean).forEach(s=>{
+    if(!ingredients.includes(s)) ingredients.push(s);
+  });
+  ingredientsInput.value="";
+  renderBadges();
+};
+clearBtn.onclick = ()=>{ ingredients=[]; renderBadges(); results.innerHTML=""; };
+addPantryBtn.onclick = ()=>{
+  if(pantryItem.value && expiryDate.value){
+    pantry.push({name: pantryItem.value, expiry: expiryDate.value});
+    savePantry(); renderPantry();
+    pantryItem.value=""; expiryDate.value="";
+  }
+};
+
+// Toggle favorites without re-fetch
+function toggleFavorite(recipe){
+  if(favorites.has(recipe.id)) favorites.delete(recipe.id);
+  else favorites.add(recipe.id);
+  localStorage.setItem("favorites", JSON.stringify(Array.from(favorites)));
+  
+  document.querySelectorAll(".favBtn").forEach(btn=>{
+    if(btn.parentElement.querySelector("h4").textContent === recipe.title){
+      btn.textContent = favorites.has(recipe.id) ? "★ Favorite" : "☆ Add Favorite";
+    }
+  });
+}
+
+// Fetch recipes with error handling
+async function fetchRecipes() {
+  if(!ingredients.length) return alert("Add ingredients first!");
+  results.innerHTML="<p class='col-span-full text-center text-indigo-500 font-semibold'>Loading...</p>";
+  try{
+    const diet = dietFilter.value ? `&diet=${encodeURIComponent(dietFilter.value)}` : "";
+    const url = `https://api.spoonacular.com/recipes/findByIngredients?ingredients=${ingredients.join(",")}&number=12&apiKey=${SPOONACULAR_KEY}${diet}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if(!Array.isArray(data)){
+      results.innerHTML=`<p class="col-span-full text-center text-red-500 font-semibold">${data.message||"Unexpected API response"}</p>`;
+      return;
+    }
+    if(data.length===0){
+      results.innerHTML=`<p class="col-span-full text-center text-orange-500 font-semibold">No recipes found for these ingredients.</p>`;
+      return;
+    }
+    
+    results.innerHTML="";
+    data.forEach(item=>{
+      const div = document.createElement("div");
+      div.className="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-2 hover:shadow-2xl transition";
+      div.innerHTML=`
+        <img src="${item.image}" alt="${item.title}" class="w-full h-40 object-cover">
+        <h4 class="p-3 font-semibold text-indigo-700">${item.title}</h4>
+        <button class="favBtn w-11/12 mx-3 mb-3 py-2 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-lg transition">
+          ${favorites.has(item.id) ? "★ Favorite" : "☆ Add Favorite"}
+        </button>
+      `;
+      div.querySelector(".favBtn").onclick=()=>toggleFavorite(item);
+      results.appendChild(div);
+    });
+    
+  }catch(err){
+    results.innerHTML=`<p class="col-span-full text-center text-red-600 font-semibold">Network error: ${err.message}</p>`;
+  }
+}
+
+// ----- INITIALIZATION -----
+renderBadges();
+renderPantry();
+searchBtn.onclick=fetchRecipes;
+
+</script>
+</body>
+</html>
