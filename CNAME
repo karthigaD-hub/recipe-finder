@@ -1,1 +1,4 @@
-recipes.yourdomain.com
+Type: CNAME
+Name: recipes (or @ if using main domain)
+Value: karthigad-hub.github.io
+TTL: 3600 (or Automatic)
